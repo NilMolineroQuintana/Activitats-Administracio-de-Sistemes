@@ -1,0 +1,47 @@
+#!/bin/bash
+
+debianVM="Debian 12.x 64-bit"
+almaVM="AlmaLinux 64-bit"
+
+debianIP="172.16.132.130"
+almaIP="172.16.132.131"
+
+VM_DIR="$HOME/Documentos/VMS"
+
+echo $debianVMroute
+
+echo "Quina VM vols?"
+echo "1) Debian"
+echo "2) Alma"
+
+read opcio
+
+if ! [[ $opcio =~ ^[0-9]+$ ]] || [ $opcio -lt 1 ] || [ $opcio -gt 2 ]; then
+	echo "Aquesta no es una opció vàlida!"
+fi
+
+case $opcio in
+	1)
+		opcio=$debianVM
+		dir=$debianVMroute	
+		ip=$debianIP
+		;;
+	2)	opcio=$almaVM
+		dir=$almaVMroute
+		ip=$almaIP
+		;;
+esac
+
+if vmrun list | grep -q "${opcio}.vmx"; then
+	echo "$opcio ja esta activa"
+else
+	vmrun start "${VM_DIR}/${opcio}/${opcio}.vmx" nogui > /dev/null 2>&1 &
+fi
+
+while ! nc -z "$ip" 22; do
+    echo "Esperant a que $opcio estigui llesta..."
+    sleep 2
+done
+
+echo "Esta llesta! Connectant!"
+ssh "nil@$ip"
