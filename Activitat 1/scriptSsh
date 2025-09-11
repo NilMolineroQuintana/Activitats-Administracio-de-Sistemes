@@ -3,6 +3,8 @@
 debianVM="Debian 12.x 64-bit"
 almaVM="AlmaLinux 64-bit"
 
+usuari="nil"
+
 debianIP="172.16.132.130"
 almaIP="172.16.132.131"
 
@@ -44,4 +46,4 @@ while ! nc -z "$ip" 22; do
 done
 
 echo "Esta llesta! Connectant!"
-ssh "nil@$ip"
+ssh "${usuari}@$ip"
