@@ -1,0 +1,794 @@
+Description: Networking and Infrastructure for AMSA WordPress High Availability
+Parameters:
+  KeyName:
+    Description: Nom del KeyPair ECM per SSH
+    Type: String
+    Default: vockey
+
+  AMIId:
+    Description: AMI per a instàncies EC2 i LT
+    Type: String
+    Default: ami-063d43db0594b521b
+
+  DBMasterUsername:
+    Description: Usuari administrador RDS
+    Type: String
+    Default: admin
+
+  DBMasterPassword:
+    Description: Password administrador RDS (NoEcho)
+    Type: String
+    Default: h0dc?r00t?p4ssw0rd
+
+  DBUserName:
+    Description: Usuari base dades WordPress
+    Type: String
+    Default: amsa-wordpress-user
+
+  DBUserPassword:
+    Description: Password usuari WordPress DB (NoEcho)
+    Type: String
+    Default: w0rdpr3ss?p4ssw0rd
+
+  VPNAdminPassword:
+    Description: Password administrador OpenVPN (NoEcho)
+    Type: String
+    Default: amsa-pass1234
+
+Resources:
+  AMSAVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: AMSA-VPC
+
+  AMSADMZ01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-east-1a
+      CidrBlock: 10.0.1.0/24
+      VpcId: !Ref AMSAVPC
+      Tags:
+        - Key: Name
+          Value: AMSA-DMZ-01
+  AMSADMZ02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-east-1b
+      CidrBlock: 10.0.2.0/24
+      VpcId: !Ref AMSAVPC
+      Tags:
+        - Key: Name
+          Value: AMSA-DMZ-02
+
+  AMSAPrivate01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-east-1a
+      CidrBlock: 10.0.3.0/24
+      VpcId: !Ref AMSAVPC
+      Tags:
+        - Key: Name
+          Value: AMSA-Private-01
+
+  AMSAPrivate02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-east-1b
+      CidrBlock: 10.0.4.0/24
+      VpcId: !Ref AMSAVPC
+      Tags:
+        - Key: Name
+          Value: AMSA-Private-02
+
+  AMSAData:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-east-1c
+      CidrBlock: 10.0.5.0/24
+      VpcId: !Ref AMSAVPC
+      Tags:
+        - Key: Name
+          Value: AMSA-Data
+
+  AMSAIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: AMSA-IGW
+
+  AMSAIGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref AMSAVPC
+      InternetGatewayId: !Ref AMSAIGW
+
+  AMSAEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: AMSAIGWAttachment
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: AMSA-NAT-EIP
+
+  AMSANTGW:
+    Type: AWS::EC2::NatGateway
+    DependsOn: AMSAEIP
+    Properties:
+      AllocationId: !GetAtt AMSAEIP.AllocationId
+      SubnetId: !Ref AMSADMZ01
+      Tags:
+        - Key: Name
+          Value: AMSA-NAT-Gateway
+
+  AMSAPrivate01RT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref AMSAVPC
+      Tags:
+        - Key: Name
+          Value: AMSA-Private-01-RT
+
+  AMSAPrivate02RT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref AMSAVPC
+      Tags:
+        - Key: Name
+          Value: AMSA-Private-02-RT
+
+  AMSADataRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref AMSAVPC
+      Tags:
+        - Key: Name
+          Value: AMSA-Data-RT
+
+  AMSADMZ01RT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref AMSAVPC
+      Tags:
+        - Key: Name
+          Value: AMSA-DMZ-01-RT
+
+  AMSADMZ02RT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref AMSAVPC
+      Tags:
+        - Key: Name
+          Value: AMSA-DMZ-02-RT
+
+  AMSAPrivate01RTA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AMSAPrivate01
+      RouteTableId: !Ref AMSAPrivate01RT
+
+  AMSAPrivate02RTA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AMSAPrivate02
+      RouteTableId: !Ref AMSAPrivate02RT
+
+  AMSADataRTA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AMSAData
+      RouteTableId: !Ref AMSADataRT
+
+  AMSADMZ01RTA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AMSADMZ01
+      RouteTableId: !Ref AMSADMZ01RT
+
+  AMSADMZ02RTA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AMSADMZ02
+      RouteTableId: !Ref AMSADMZ02RT
+
+  AMSAPrivate01Route:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref AMSAPrivate01RT
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref AMSANTGW
+
+  AMSAPrivate02Route:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref AMSAPrivate02RT
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref AMSANTGW
+
+  AMSADMZ01Route:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref AMSADMZ01RT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref AMSAIGW
+
+  AMSADMZ02Route:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref AMSADMZ02RT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref AMSAIGW
+
+  AMSAWPSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP and SSH access
+      VpcId: !Ref AMSAVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: AMSA-WP-SG
+
+  AMSADataSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable MySQL access
+      VpcId: !Ref AMSAVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !GetAtt AMSAWPSG.GroupId
+      Tags:
+        - Key: Name
+          Value: AMSA-Data-SG
+    DependsOn: AMSAWPSG
+
+  AMSADBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for AMSA RDS
+      SubnetIds:
+        - !Ref AMSAPrivate01
+        - !Ref AMSAPrivate02
+      Tags:
+        - Key: Name
+          Value: AMSA-DB-Subnet-Group
+
+  AMSADBSG:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: '20'
+      DBInstanceIdentifier: AMSA-DB
+      DBInstanceClass: db.t4g.micro
+      Engine: mariadb
+      EngineVersion: 10.11.9
+      MasterUsername: !Ref DBMasterUsername
+      MasterUserPassword: !Ref DBMasterPassword
+      VPCSecurityGroups:
+        - !GetAtt AMSADataSG.GroupId
+      DBSubnetGroupName: !Ref AMSADBSubnetGroup
+      MultiAZ: false
+      PubliclyAccessible: false
+      Tags:
+        - Key: Name
+          Value: AMSA-DB-SG
+    DependsOn:
+      - AMSADataSG
+      - AMSADBSubnetGroup
+
+  AMSADataEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AMIId
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: '0'
+          GroupSet:
+            - !Ref AMSAWPSG
+          SubnetId: !Ref AMSAPrivate01
+      UserData: !Base64
+        Fn::Sub: |
+          #!/bin/bash
+          dnf install -y mariadb105
+          DB_HOST=${AMSADBSG.Endpoint.Address}
+          ROOT_PASSWORD=${DBMasterPassword}
+          DB_NAME="wordpress"
+          DB_USER=${DBUserName}
+          DB_USER_PASSWORD=${DBUserPassword}
+          mysql -h "$DB_HOST" -u ${DBMasterUsername} -p"$ROOT_PASSWORD" -e "CREATE DATABASE $DB_NAME;"
+          mysql -h "$DB_HOST" -u ${DBMasterUsername} -p"$ROOT_PASSWORD" -e "CREATE USER '$DB_USER'@'%' IDENTIFIED BY '$DB_USER_PASSWORD';"
+          mysql -h "$DB_HOST" -u ${DBMasterUsername} -p"$ROOT_PASSWORD" -e "GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'%';"
+          mysql -h "$DB_HOST" -u ${DBMasterUsername} -p"$ROOT_PASSWORD" -e "FLUSH PRIVILEGES;"
+      Tags:
+        - Key: Name
+          Value: AMSA-Data-EC2
+    DependsOn: AMSAWPSG
+
+  AMSAWSWPLT01:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: AMSA-WS-WP-LT01
+      LaunchTemplateData:
+        ImageId: !Ref AMIId
+        InstanceType: t2.micro
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            AssociatePublicIpAddress: true
+            SubnetId: !Ref AMSAPrivate01
+            Groups:
+              - !Ref AMSAWPSG
+        UserData: !Base64
+          Fn::Sub: |
+            #!/bin/bash
+            dnf install -y wget php-mysqlnd httpd php-fpm php-mysqli php-json php php-devel php-gd expect
+            cd /tmp
+            wget https://wordpress.org/latest.tar.gz
+            tar -xzf latest.tar.gz
+            cp wordpress/wp-config-sample.php wordpress/wp-config.php
+            sed -i "s/database_name_here/wordpress/g" wordpress/wp-config.php
+            sed -i "s/username_here/${DBUserName}/g" wordpress/wp-config.php
+            sed -i "s/password_here/${DBUserPassword}/g" wordpress/wp-config.php
+            sed -i "s/localhost/${AMSADBSG.Endpoint.Address}/g" wordpress/wp-config.php
+            cp -r wordpress/* /var/www/html/
+            sed -i 's/AllowOverride None/AllowOverride All/g' /etc/httpd/conf/httpd.conf
+            chown -R apache:apache /var/www
+            chmod 2775 /var/www
+            sudo systemctl enable httpd
+            sudo systemctl start httpd
+      TagSpecifications:
+        - ResourceType: launch-template
+          Tags:
+            - Key: Name
+              Value: AMSA-WS-WP-LT01
+    DependsOn: AMSAWPSG
+
+  AMSAOpenVPNSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable OpenVPN access
+      VpcId: !Ref AMSAVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: udp
+          FromPort: 1194
+          ToPort: 1194
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 943
+          ToPort: 943
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: AMSA-OpenVPN-SG
+
+  AMSAEC2OpenVPN:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0bbdd8c17ed981ef9 # Ubuntu 22.04 LTS
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          GroupSet:
+            - !Ref AMSAOpenVPNSG
+          SubnetId: !Ref AMSADMZ01
+      UserData: !Base64
+        Fn::Sub: |
+          #!/bin/bash
+          set -eux
+          apt-get update -y
+          apt-get install -y ca-certificates gnupg wget net-tools
+          wget -qO /etc/apt/trusted.gpg.d/as-repo-public.asc https://as-repository.openvpn.net/as-repo-public.asc
+          echo "deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/as-repo-public.asc] http://as-repository.openvpn.net/as/debian jammy main" \
+            | tee /etc/apt/sources.list.d/openvpn-as-repo.list
+          apt-get update -y
+          apt-get install -y openvpn-as
+          sleep 20          
+          PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+          /usr/local/openvpn_as/scripts/sacli --user "openvpn" --new_pass "${VPNAdminPassword}" SetLocalPassword
+          /usr/local/openvpn_as/scripts/sacli --key "host.name" --value "$PUBLIC_IP" ConfigPut
+          /usr/local/openvpn_as/scripts/sacli --key "vpn.client.routing.reroute_gw" --value "false" ConfigPut
+          /usr/local/openvpn_as/scripts/sacli --key "vpn.server.routing.private_network.0" --value "10.0.1.0/24" ConfigPut
+          /usr/local/openvpn_as/scripts/sacli --key "vpn.server.routing.private_network.1" --value "10.0.2.0/24" ConfigPut
+          /usr/local/openvpn_as/scripts/sacli --key "vpn.server.routing.private_network.2" --value "10.0.3.0/24" ConfigPut
+          /usr/local/openvpn_as/scripts/sacli start
+          systemctl restart openvpnas
+      Tags:
+        - Key: Name
+          Value: AMSA-OpenVPN-EC2
+    DependsOn: AMSAOpenVPNSG
+
+  ElasticLoadBalancingV2ListenerListenerappAMSAALB284bfad9b6763891ee6471a93c088476:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    DeletionPolicy: "Retain"
+    Properties:
+      ListenerAttributes:
+      - Value: "true"
+        Key: "routing.http.response.server.enabled"
+      - Value: ""
+        Key: "routing.http.response.access_control_allow_headers.header_value"
+      - Value: ""
+        Key: "routing.http.response.x_frame_options.header_value"
+      - Value: ""
+        Key: "routing.http.response.access_control_allow_methods.header_value"
+      - Value: ""
+        Key: "routing.http.response.access_control_allow_origin.header_value"
+      - Value: ""
+        Key: "routing.http.response.access_control_allow_credentials.header_value"
+      - Value: ""
+        Key: "routing.http.response.x_content_type_options.header_value"
+      - Value: ""
+        Key: "routing.http.response.content_security_policy.header_value"
+      - Value: ""
+        Key: "routing.http.response.access_control_expose_headers.header_value"
+      - Value: ""
+        Key: "routing.http.response.strict_transport_security.header_value"
+      - Value: ""
+        Key: "routing.http.response.access_control_max_age.header_value"
+      Protocol: "HTTP"
+      LoadBalancerArn:
+        Ref: "ElasticLoadBalancingV2LoadBalancerLoadbalancerappAMSAALB284bfad9b6763891"
+      DefaultActions:
+      - Order: 1
+        TargetGroupArn:
+          Ref: "ElasticLoadBalancingV2TargetGroupTargetgroupAMSAWPTG5752bf48c0d2c33b"
+        Type: "forward"
+        ForwardConfig:
+          TargetGroupStickinessConfig:
+            Enabled: false
+            DurationSeconds: 3600
+          TargetGroups:
+          - TargetGroupArn:
+              Ref: "ElasticLoadBalancingV2TargetGroupTargetgroupAMSAWPTG5752bf48c0d2c33b"
+            Weight: 1
+      Port: 80
+  EC2Instance:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::EC2::Instance"
+    DeletionPolicy: "Retain"
+    Properties:
+      Tenancy: "default"
+      PrivateIpAddress: "10.0.3.49"
+      UserData: "IyEvYmluL2Jhc2gKZG5mIGluc3RhbGwgLXkgd2dldCBwaHAtbXlzcWxuZCBodHRwZCBwaHAtZnBtIHBocC1teXNxbGkgcGhwLWpzb24gcGhwIHBocC1kZXZlbCBwaHAtZ2QgZXhwZWN0CmNkIC90bXAKd2dldCBodHRwczovL3dvcmRwcmVzcy5vcmcvbGF0ZXN0LnRhci5negp0YXIgLXh6ZiBsYXRlc3QudGFyLmd6CmNwIHdvcmRwcmVzcy93cC1jb25maWctc2FtcGxlLnBocCB3b3JkcHJlc3Mvd3AtY29uZmlnLnBocApzZWQgLWkgInMvZGF0YWJhc2VfbmFtZV9oZXJlL3dvcmRwcmVzcy9nIiB3b3JkcHJlc3Mvd3AtY29uZmlnLnBocApzZWQgLWkgInMvdXNlcm5hbWVfaGVyZS9hbXNhLXdvcmRwcmVzcy11c2VyL2ciIHdvcmRwcmVzcy93cC1jb25maWcucGhwCnNlZCAtaSAicy9wYXNzd29yZF9oZXJlL3cwcmRwcjNzcz9wNHNzdzByZC9nIiB3b3JkcHJlc3Mvd3AtY29uZmlnLnBocApzZWQgLWkgInMvbG9jYWxob3N0L2Ftc2EtZGIuY3gyMmFteTZzYTFwLnVzLWVhc3QtMS5yZHMuYW1hem9uYXdzLmNvbS9nIiB3b3JkcHJlc3Mvd3AtY29uZmlnLnBocApjcCAtciB3b3JkcHJlc3MvKiAvdmFyL3d3dy9odG1sLwpzZWQgLWkgJ3MvQWxsb3dPdmVycmlkZSBOb25lL0FsbG93T3ZlcnJpZGUgQWxsL2cnIC9ldGMvaHR0cGQvY29uZi9odHRwZC5jb25mCmNob3duIC1SIGFwYWNoZTphcGFjaGUgL3Zhci93d3cKY2htb2QgMjc3NSAvdmFyL3d3dwpzdWRvIHN5c3RlbWN0bCBlbmFibGUgaHR0cGQKc3VkbyBzeXN0ZW1jdGwgc3RhcnQgaHR0cGQK"
+      InstanceInitiatedShutdownBehavior: "stop"
+      BlockDeviceMappings:
+      - Ebs:
+          SnapshotId: "snap-05ed47770bc2da641"
+          VolumeType: "gp3"
+          Iops: 3000
+          VolumeSize: 8
+          Encrypted: false
+          DeleteOnTermination: true
+        DeviceName: "/dev/xvda"
+      PrivateDnsNameOptions:
+        EnableResourceNameDnsARecord: false
+        HostnameType: "ip-name"
+        EnableResourceNameDnsAAAARecord: false
+      SecurityGroupIds:
+      - "sg-016f4a8feb361754b"
+      EbsOptimized: false
+      DisableApiTermination: false
+      SourceDestCheck: true
+      PlacementGroupName: ""
+      VpcId: "vpc-00963c185ee8c94c2"
+      State:
+        Code: "16"
+        Name: "running"
+      NetworkInterfaces:
+      - Ipv6Addresses: []
+        SecondaryPrivateIpAddressCount: 0
+        NetworkInterfaceId:
+          Ref: "EC2NetworkInterface"
+        DeviceIndex: "0"
+      ImageId: "ami-063d43db0594b521b"
+      InstanceType: "t2.micro"
+      Monitoring: false
+      Tags:
+      - Value: " AMSA-WP-01"
+        Key: "Name"
+      - Value: ""
+        Key: "afegir"
+      CreditSpecification:
+        CPUCredits: "standard"
+  EC2NetworkInterfaceHm:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::EC2::NetworkInterface"
+    DeletionPolicy: "Retain"
+    Properties:
+      Description: ""
+      PrivateIpAddress: "10.0.4.87"
+      SecondaryPrivateIpAddressCount: 0
+      Ipv6PrefixCount: 0
+      Ipv4Prefixes: []
+      Ipv4PrefixCount: 0
+      GroupSet:
+      - "sg-016f4a8feb361754b"
+      Ipv6Prefixes: []
+      SubnetId: "subnet-093ed5b32adc65f69"
+      SourceDestCheck: true
+      InterfaceType: "interface"
+      Tags: []
+      PublicIpDnsNameOptions:
+        DnsHostnameType: "public-ipv4-dns-name"
+        PublicIpv4DnsName: "ec2-54-210-176-0.compute-1.amazonaws.com"
+  EC2VolumePS:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::EC2::Volume"
+    DeletionPolicy: "Retain"
+    Properties:
+      MultiAttachEnabled: false
+      SnapshotId: "snap-05ed47770bc2da641"
+      VolumeType: "gp3"
+      Encrypted: false
+      Size: 8
+      AutoEnableIO: true
+      AvailabilityZone: "us-east-1a"
+      Throughput: 125
+      Iops: 3000
+      Tags: []
+  EC2VolumeAttachmentWa:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::EC2::VolumeAttachment"
+    DeletionPolicy: "Retain"
+    Properties:
+      InstanceId: "i-0448728e3e67560ac"
+      VolumeId: "vol-04358566515dd188b"
+      Device: "/dev/xvda"
+  EC2VolumeAttachment:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::EC2::VolumeAttachment"
+    DeletionPolicy: "Retain"
+    Properties:
+      InstanceId: "i-0dae6041d53e97366"
+      VolumeId: "vol-02615b660bdb8d1e9"
+      Device: "/dev/xvda"
+  EC2NetworkInterface:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::EC2::NetworkInterface"
+    DeletionPolicy: "Retain"
+    Properties:
+      Description: ""
+      PrivateIpAddress: "10.0.3.49"
+      SecondaryPrivateIpAddressCount: 0
+      Ipv6PrefixCount: 0
+      Ipv4Prefixes: []
+      Ipv4PrefixCount: 0
+      GroupSet:
+      - "sg-016f4a8feb361754b"
+      Ipv6Prefixes: []
+      SubnetId: "subnet-0dc400ebf14ba3da1"
+      SourceDestCheck: true
+      InterfaceType: "interface"
+      Tags: []
+      PublicIpDnsNameOptions:
+        DnsHostnameType: "public-ipv4-dns-name"
+        PublicIpv4DnsName: "ec2-34-224-84-109.compute-1.amazonaws.com"
+  EC2Volume:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::EC2::Volume"
+    DeletionPolicy: "Retain"
+    Properties:
+      MultiAttachEnabled: false
+      SnapshotId: "snap-05ed47770bc2da641"
+      VolumeType: "gp3"
+      Encrypted: false
+      Size: 8
+      AutoEnableIO: true
+      AvailabilityZone: "us-east-1b"
+      Throughput: 125
+      Iops: 3000
+      Tags: []
+  ElasticLoadBalancingV2LoadBalancerLoadbalancerappAMSAALB284bfad9b6763891:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    DeletionPolicy: "Retain"
+    Properties:
+      IpAddressType: "ipv4"
+      SecurityGroups:
+      - "sg-078751c69d8d9131b"
+      LoadBalancerAttributes:
+      - Value: ""
+        Key: "access_logs.s3.prefix"
+      - Value: "append"
+        Key: "routing.http.xff_header_processing.mode"
+      - Value: "true"
+        Key: "routing.http2.enabled"
+      - Value: "false"
+        Key: "waf.fail_open.enabled"
+      - Value: ""
+        Key: "connection_logs.s3.bucket"
+      - Value: "false"
+        Key: "access_logs.s3.enabled"
+      - Value: "false"
+        Key: "zonal_shift.config.enabled"
+      - Value: "defensive"
+        Key: "routing.http.desync_mitigation_mode"
+      - Value: ""
+        Key: "connection_logs.s3.prefix"
+      - Value: "false"
+        Key: "routing.http.x_amzn_tls_version_and_cipher_suite.enabled"
+      - Value: "false"
+        Key: "routing.http.preserve_host_header.enabled"
+      - Value: "true"
+        Key: "load_balancing.cross_zone.enabled"
+      - Value: "false"
+        Key: "routing.http.xff_client_port.enabled"
+      - Value: ""
+        Key: "access_logs.s3.bucket"
+      - Value: "false"
+        Key: "deletion_protection.enabled"
+      - Value: "3600"
+        Key: "client_keep_alive.seconds"
+      - Value: "false"
+        Key: "routing.http.drop_invalid_header_fields.enabled"
+      - Value: "false"
+        Key: "connection_logs.s3.enabled"
+      - Value: "60"
+        Key: "idle_timeout.timeout_seconds"
+      Subnets:
+      - "subnet-012b45af387c8c2d6"
+      - "subnet-0e3fc2cb76185a625"
+      Type: "application"
+      Scheme: "internet-facing"
+      EnablePrefixForIpv6SourceNat: "off"
+      EnforceSecurityGroupInboundRulesOnPrivateLinkTraffic: ""
+      Tags:
+      - Value: ""
+        Key: "afegir"
+      Name: "AMSA-ALB"
+      SubnetMappings:
+      - SubnetId: "subnet-0e3fc2cb76185a625"
+      - SubnetId: "subnet-012b45af387c8c2d6"
+  EC2SecurityGroup:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::EC2::SecurityGroup"
+    DeletionPolicy: "Retain"
+    Properties:
+      GroupDescription: "AMSA-ALB-SG"
+      GroupName: "AMSA-ALB-SG"
+      VpcId: "vpc-00963c185ee8c94c2"
+      SecurityGroupIngress:
+      - CidrIp: "0.0.0.0/0"
+        IpProtocol: "tcp"
+        FromPort: 80
+        ToPort: 80
+      - CidrIp: "0.0.0.0/0"
+        IpProtocol: "tcp"
+        FromPort: 443
+        ToPort: 443
+      SecurityGroupEgress:
+      - IpProtocol: "-1"
+        DestinationSecurityGroupId: "sg-016f4a8feb361754b"
+        FromPort: -1
+        ToPort: -1
+  EC2InstanceSo:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::EC2::Instance"
+    DeletionPolicy: "Retain"
+    Properties:
+      Tenancy: "default"
+      PrivateIpAddress: "10.0.4.87"
+      UserData: "IyEvYmluL2Jhc2gKZG5mIGluc3RhbGwgLXkgd2dldCBwaHAtbXlzcWxuZCBodHRwZCBwaHAtZnBtIHBocC1teXNxbGkgcGhwLWpzb24gcGhwIHBocC1kZXZlbCBwaHAtZ2QgZXhwZWN0CmNkIC90bXAKd2dldCBodHRwczovL3dvcmRwcmVzcy5vcmcvbGF0ZXN0LnRhci5negp0YXIgLXh6ZiBsYXRlc3QudGFyLmd6CmNwIHdvcmRwcmVzcy93cC1jb25maWctc2FtcGxlLnBocCB3b3JkcHJlc3Mvd3AtY29uZmlnLnBocApzZWQgLWkgInMvZGF0YWJhc2VfbmFtZV9oZXJlL3dvcmRwcmVzcy9nIiB3b3JkcHJlc3Mvd3AtY29uZmlnLnBocApzZWQgLWkgInMvdXNlcm5hbWVfaGVyZS9hbXNhLXdvcmRwcmVzcy11c2VyL2ciIHdvcmRwcmVzcy93cC1jb25maWcucGhwCnNlZCAtaSAicy9wYXNzd29yZF9oZXJlL3cwcmRwcjNzcz9wNHNzdzByZC9nIiB3b3JkcHJlc3Mvd3AtY29uZmlnLnBocApzZWQgLWkgInMvbG9jYWxob3N0L2Ftc2EtZGIuY3gyMmFteTZzYTFwLnVzLWVhc3QtMS5yZHMuYW1hem9uYXdzLmNvbS9nIiB3b3JkcHJlc3Mvd3AtY29uZmlnLnBocApjcCAtciB3b3JkcHJlc3MvKiAvdmFyL3d3dy9odG1sLwpzZWQgLWkgJ3MvQWxsb3dPdmVycmlkZSBOb25lL0FsbG93T3ZlcnJpZGUgQWxsL2cnIC9ldGMvaHR0cGQvY29uZi9odHRwZC5jb25mCmNob3duIC1SIGFwYWNoZTphcGFjaGUgL3Zhci93d3cKY2htb2QgMjc3NSAvdmFyL3d3dwpzdWRvIHN5c3RlbWN0bCBlbmFibGUgaHR0cGQKc3VkbyBzeXN0ZW1jdGwgc3RhcnQgaHR0cGQK"
+      InstanceInitiatedShutdownBehavior: "stop"
+      BlockDeviceMappings:
+      - Ebs:
+          SnapshotId: "snap-05ed47770bc2da641"
+          VolumeType: "gp3"
+          Iops: 3000
+          VolumeSize: 8
+          Encrypted: false
+          DeleteOnTermination: true
+        DeviceName: "/dev/xvda"
+      PrivateDnsNameOptions:
+        EnableResourceNameDnsARecord: false
+        HostnameType: "ip-name"
+        EnableResourceNameDnsAAAARecord: false
+      SecurityGroupIds:
+      - "sg-016f4a8feb361754b"
+      EbsOptimized: false
+      DisableApiTermination: false
+      SourceDestCheck: true
+      PlacementGroupName: ""
+      VpcId: "vpc-00963c185ee8c94c2"
+      State:
+        Code: "16"
+        Name: "running"
+      NetworkInterfaces:
+      - Ipv6Addresses: []
+        SecondaryPrivateIpAddressCount: 0
+        NetworkInterfaceId:
+          Ref: "EC2NetworkInterfaceHm"
+        DeviceIndex: "0"
+      ImageId: "ami-063d43db0594b521b"
+      InstanceType: "t2.micro"
+      Monitoring: false
+      Tags:
+      - Value: ""
+        Key: "afegir"
+      - Value: " AMSA-WP-02"
+        Key: "Name"
+      CreditSpecification:
+        CPUCredits: "standard"
+  ElasticLoadBalancingV2TargetGroupTargetgroupAMSAWPTG5752bf48c0d2c33b:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    DeletionPolicy: "Retain"
+    Properties:
+      IpAddressType: "ipv4"
+      HealthCheckIntervalSeconds: 30
+      Matcher:
+        HttpCode: "200"
+      HealthCheckPath: "/"
+      Port: 80
+      Targets:
+      - Port: 80
+        Id: "i-0448728e3e67560ac"
+      - Port: 80
+        Id: "i-0dae6041d53e97366"
+      HealthCheckEnabled: true
+      ProtocolVersion: "HTTP1"
+      UnhealthyThresholdCount: 2
+      HealthCheckTimeoutSeconds: 5
+      Name: "AMSA-WP-TG"
+      VpcId: "vpc-00963c185ee8c94c2"
+      HealthyThresholdCount: 5
+      HealthCheckProtocol: "HTTP"
+      TargetGroupAttributes:
+      - Value: "lb_cookie"
+        Key: "stickiness.type"
+      - Value: "86400"
+        Key: "stickiness.app_cookie.duration_seconds"
+      - Value: "1"
+        Key: "target_group_health.dns_failover.minimum_healthy_targets.count"
+      - Value: "use_load_balancer_configuration"
+        Key: "load_balancing.cross_zone.enabled"
+      - Value: "86400"
+        Key: "stickiness.lb_cookie.duration_seconds"
+      - Value: "off"
+        Key: "target_group_health.dns_failover.minimum_healthy_targets.percentage"
+      - Value: "false"
+        Key: "stickiness.enabled"
+      - Value: "off"
+        Key: "target_group_health.unhealthy_state_routing.minimum_healthy_targets.percentage"
+      - Value: "0"
+        Key: "slow_start.duration_seconds"
+      - Value: "300"
+        Key: "deregistration_delay.timeout_seconds"
+      - Value: "1"
+        Key: "target_group_health.unhealthy_state_routing.minimum_healthy_targets.count"
+      - Value: "off"
+        Key: "load_balancing.algorithm.anomaly_mitigation"
+      - Value: ""
+        Key: "stickiness.app_cookie.cookie_name"
+      - Value: "round_robin"
+        Key: "load_balancing.algorithm.type"
+      TargetType: "instance"
+      HealthCheckPort: "traffic-port"
+      Protocol: "HTTP"
+      Tags: []
