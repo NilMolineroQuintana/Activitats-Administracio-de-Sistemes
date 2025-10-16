@@ -2,13 +2,13 @@
 
 ## 1. Com milloraríeu els grups de seguretat, quins canvis faríeu?
 
-No n'hi ha molta cosa a millorar pero podriem ser més restrictius a l'hora d'establir les normatives Outbound de per exemple les màquines "AMSA-WP"
+No n'hi ha gaire cosa a millorar pero podriem ser més restrictius a l'hora d'establir les normatives Outbound de per exemple les màquines "AMSA-WP"
 
 ## 2. Què caldria fer per connectar un client MySQL des de casa a la base de dades RDS? Expliqueu els passos.
 
 1. Ens connectem amb la VPN que hem configurat. Això ens permetrà entrar a la xarxa privada.
 2. Una vegada allà fem SSH a la màquina AMSA-Data-EC2.
-3. Final executem el nostre client MySQL amb les creedencials establertes a la base de dades.
+3. Final executem el nostre client MySQL amb les credencials establertes a la base de dades.
 
 ## 3. Prepara un script que faci una prova de càrrega al balancejador de càrrega i mostri com es distribueix el tràfic entre les instàncies EC2.
 
@@ -21,7 +21,7 @@ PORT="80"
 NUM_PETICIONS=10
 IPS_REGISTRADES=()
 
-echo "--- Iniciant proba de distribució de carrega ($NUM_PETICIONS peticions) ---"
+echo "--- Iniciant prova de distribució de càrrega ($NUM_PETICIONS peticions) ---"
 echo "Target: $URL"
 echo "--------------------------------------------------------------------------"
 
@@ -35,7 +35,7 @@ for i in $(seq 1 $NUM_PETICIONS); do
 done
 
 echo "--------------------------------------------------------------------------"
-echo "--- Resum de Distribució de Tráfic ---"
+echo "--- Resum de Distribució de Tràfic ---"
 
 declare -A FREQUENCIES
 for ip in "${IPS_REGISTRADES[@]}"; do
