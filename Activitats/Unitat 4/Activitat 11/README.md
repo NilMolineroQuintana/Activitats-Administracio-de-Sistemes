@@ -1,6 +1,8 @@
 # Activitat 11
 
-Tota l'activitat s'ha realitzat en una màquina virtual AlmaLinux 9.6.
+- **Autor:** Nil Molinero Quintana
+- **Tota l'activitat s'ha realitzat en una màquina virtual AlmaLinux 9.6.**
+- **També es pot trobar aquest document al repositori de Github:** https://github.com/NilMolineroQuintana/Activitats-Administracio-de-Sistemes/tree/main/Activitats/Unitat%204/Activitat%2011
 
 ## Mostrant informació de benvinguda
 
