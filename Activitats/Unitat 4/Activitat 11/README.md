@@ -1,15 +1,22 @@
 # Activitat 11
 
+Tota l'activitat s'ha realitzat en una màquina virtual AlmaLinux 9.6.
+
 ## Mostrant informació de benvinguda
 
-Modifiquem `/etc/motd` i li afegim el missatge customitzat. Aquest es mostrara unicament s'ha aconseguit fer login correctament.
+He modificat `/etc/motd` i li he afegit el missatge customitzat. Aquest es mostrara unicament s'ha aconseguit fer login correctament.
+
+![alt text](Informacio_benvinguda.png)
 
 ## Mostrant informació: Connexions remotes
-Hem de modificar `/etc/issue.net` per tal d'afegir un missatge que es mostra en intentar connectar via SSH. També hem de modificar la configuració de SSH al fitxer `/etc/ssh/sshd_config` modificant el paràmetre `Banner` per tal de mostrar aquest missatge.
+
+He de modificar `/etc/issue.net` per tal d'afegir un missatge que es mostra en intentar connectar via SSH. També he de modificar la configuració de SSH al fitxer `/etc/ssh/sshd_config` modificant el paràmetre `Banner none` a `Banner /etc/issue.net` per tal de mostrar aquest missatge.
 
 ![alt text](issue.net+motd.png)
 
 ## Creació de grups
+
+He creat els grups mitjançant la comanda `groupadd -g [GID] [NOM]`.
 
 Aquest es un script en bash que simplement fa més interactiva la creació de grups.
 
@@ -43,6 +50,12 @@ done
 **Resultat final**
 
 ![alt text](Grups_creats.png)
+
+## Creació d'usuaris
+
+He creat els usuaris mitjançant la comanda `useradd -u [USER_UID] -g [USER_GID] [NOM]`.
+
+Aquest es un script en bash que simplement fa més interactiva la creació d'usuaris.
 
 ```sh
 #!/bin/bash
@@ -96,25 +109,16 @@ done
 ### Assigna la contrasenya Tolkien2LOR a tots els usuaris.
 
 Per a canviar la contrasenya de tots els usuaris que volem d'una sola vega he executat aquestes comandes:
+
 ```sh
 for u in frodo gollum samwise legolas gimli gandalf do                                     
     echo "$u:Tolkien2LOR" | sudo chpasswd
 done
 ```
 
-### Fer que l'usuari hagi de canviar la contrasenya en inicar sessió
-
-Establim la data del últim canvi de contrasenya a 0 per tal de forçar a l'usuari a modificar la seva contrasenya en iniciar sessió. He executat aquestes comandes.
-
-```sh
-for u in frodo gollum samwise legolas gimli gandalf; do                                     
-        sudo chage -d 0 "$u"
-done
-```
-
 ### Fer que el sistema bloquegi l'usuari en realitzar fallades
 
-Primer hem de modificar del fitxer `nano /etc/security/faillock.conf` els camps que es troben a l'arxiu a `deny = 3` i `unlock_time = 120` per tal d'establir com i quan serà el bloqueig de l'usuari. A més, hem d’executar la comanda `authselect select sssd --force` per tal de configurar el sistema perquè utilitzi el perfil SSSD i actualitzi els fitxers PAM corresponents. Seguidament he executat `authselect enable-feature with-faillock` per habilitar el bloqueig per fallades i `authselect apply-changes` per aplicar tots els canvis establerts. Finalment, he modificat al fitxer `/etc/ssh/sshd_config` he modificat l'apartat que permet l'ús de PAM a SSH amb l'atribut `UsePam=yes`.
+Primer he de modificar del fitxer `/etc/security/faillock.conf` els camps que es troben a l'arxiu a `deny = 3` i `fail_interval = 120 = 120` per tal d'establir com i quan serà el bloqueig de l'usuari. A més, he d’executar la comanda `authselect select sssd --force` per tal de configurar el sistema perquè utilitzi el perfil SSSD i actualitzi els fitxers corresponents. Seguidament he executat `authselect enable-feature with-faillock` per habilitar el bloqueig per fallades i `authselect apply-changes` per aplicar tots els canvis establerts.
 
 ### Configurar polítiques de contrasenyes fortes
 
@@ -123,6 +127,16 @@ He modificat el fitxer `/etc/security/pwquality.conf` i afegit els següents cam
 - `minclass = 4` Per forçar que es faci ús de majúscules, minúscules, números i caràcters especials.
 
 ![alt text](Contrasenya_expirada.png)
+
+### Fer que l'usuari hagi de canviar la contrasenya en inicar sessió
+
+He establert la data del últim canvi de contrasenya a 0 per tal de forçar a l'usuari a modificar la seva contrasenya en iniciar sessió. He executat aquestes comandes.
+
+```sh
+for u in frodo gollum samwise legolas gimli gandalf; do                                     
+        sudo chage -d 0 "$u"
+done
+```
 
 ## Accés a la comarca (SSH)
 
@@ -149,7 +163,7 @@ Match User gandalf
 
 ![alt text](Gollum_denegat.png)
 
-Per a configurar l'SSH de Gandalf hem hagut de realitzar tot aquest procediment:
+Per a configurar l'SSH de Gandalf he hagut de realitzar tot aquest procediment:
 
 ```sh
 sudo -u gandalf mkdir -p /home/gandalf/.ssh # Creem el directori .ssh
@@ -177,7 +191,7 @@ Per a que Gandalf sigui root he d'afegir-li també el grup `wheel` amb la següe
 sudo usermod -aG wheel gandalf
 ```
 
-Amb aquesta assignació ja seria capaç de realitzar accions de sudo pero per assegurar-nos que es root l'hem d'afegir al final del fitxer de sudoers per tal de que tingui permís explicit de sudo. El format és aquest:
+Amb aquesta assignació ja seria capaç de realitzar accions de sudo pero per assegurar-nos que es root l'he d'afegir al final del fitxer de sudoers per tal de que tingui permís explicit de sudo. El format és aquest:
 
 ```sh
 gandalf ALL=(ALL) ALL
@@ -202,7 +216,7 @@ rmdir rmdir /home/gollum # Esborrem el /home original.
 
 ### Canviar la shell de legolas
 
-Per a canviar la shell que usa l'usuari legolas a `/bin/tcsh` unicament hem hagut d'executar la comanda `usermod -s /bin/tcsh legolas`.
+Per a canviar la shell que usa l'usuari legolas a `/bin/tcsh` unicament he hagut d'executar la comanda `usermod -s /bin/tcsh legolas`.
 
 **Resultat final en executar la comanda**
 
@@ -210,7 +224,7 @@ Per a canviar la shell que usa l'usuari legolas a `/bin/tcsh` unicament hem hagu
 
 ### Eliminar la contrasenya de gimli
 
-Per a esborrar la contrasenya de l'usuari gimli unicament hem hagut d'executar la comanda `sudo passwd -d gimli`.
+Per a esborrar la contrasenya de l'usuari gimli unicament he hagut d'executar la comanda `sudo passwd -d gimli`.
 
 **Resultat final en executar la comanda**
 
@@ -250,3 +264,7 @@ Executem `sudo userdel -r samwise` per tal d'esborrar tant l'usuari com el seu h
 
 ## Notificació de la comarca
 
+He instal·lat i configurat postfix per fer una prova d'enviament de correus entre usuaris. En fer tota la configuració especificada, he enviat un mail desde Gandalf fins a Frodo amb la comanda `echo "Benvinguts a la companyia, anem direcció mordor." | mail -s "Notificació de la comarca" frodo@localhost`. En enviar el mail amb el servei veiem que frodo troba el seu correu rebut a `~/Maildir`.
+
+![alt text](Mail_rebut.png)
+**N'hi ha més d'un mail perquè vaig pensar que no els rebia.**
